@@ -24,6 +24,31 @@ object Library {
     private val _disliked = MutableStateFlow<Set<Long>>(emptySet())
     val disliked: StateFlow<Set<Long>> = _disliked.asStateFlow()
 
+    data class SavedPlaylist(
+        val id: String,
+        val title: String,
+        val author: String,
+        val artworkUrl: String?,
+        val tracks: List<Track>,
+    )
+
+    private val _playlists = MutableStateFlow<List<SavedPlaylist>>(emptyList())
+    val playlists: StateFlow<List<SavedPlaylist>> = _playlists.asStateFlow()
+
+    @Synchronized
+    fun savePlaylist(p: SavedPlaylist) {
+        _playlists.value = listOf(p) + _playlists.value.filter { it.id != p.id }
+        save()
+    }
+
+    @Synchronized
+    fun removePlaylist(id: String) {
+        _playlists.value = _playlists.value.filter { it.id != id }
+        save()
+    }
+
+    fun hasPlaylist(id: String) = _playlists.value.any { it.id == id }
+
     /** id треков из загруженных плейлистов — от них Волна ищет похожее. */
     private var seeds: List<Long> = emptyList()
 
@@ -115,6 +140,23 @@ object Library {
             _liked.value = o.optJSONArray("liked").toTracks()
             val d = o.optJSONArray("disliked")
             _disliked.value = if (d == null) emptySet() else (0 until d.length()).map { d.getLong(it) }.toSet()
+            val pls = o.optJSONArray("playlists")
+            if (pls != null) {
+                _playlists.value = (0 until pls.length()).mapNotNull { i ->
+                    try {
+                        val p = pls.getJSONObject(i)
+                        SavedPlaylist(
+                            id = p.getString("id"),
+                            title = p.optString("title"),
+                            author = p.optString("author"),
+                            artworkUrl = p.str("art"),
+                            tracks = p.optJSONArray("tracks").toTracks(),
+                        )
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+            }
             val s = o.optJSONArray("seeds")
             seeds = if (s == null) emptyList() else (0 until s.length()).map { s.getLong(it) }
         } catch (e: Exception) {
@@ -128,6 +170,17 @@ object Library {
         o.put("liked", JSONArray().apply { _liked.value.forEach { put(it.toJson()) } })
         o.put("disliked", JSONArray().apply { _disliked.value.forEach { put(it) } })
         o.put("seeds", JSONArray().apply { seeds.forEach { put(it) } })
+        o.put("playlists", JSONArray().apply {
+            _playlists.value.forEach { p ->
+                put(JSONObject().apply {
+                    put("id", p.id)
+                    put("title", p.title)
+                    put("author", p.author)
+                    if (p.artworkUrl != null) put("art", p.artworkUrl)
+                    put("tracks", JSONArray().apply { p.tracks.forEach { put(it.toJson()) } })
+                })
+            }
+        })
         val tmp = File(root, "library.json.tmp")
         tmp.writeText(o.toString())
         if (!tmp.renameTo(file())) {

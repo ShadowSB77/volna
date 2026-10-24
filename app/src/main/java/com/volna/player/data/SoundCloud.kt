@@ -26,6 +26,9 @@ object SoundCloud {
         val author: String,
         val artworkUrl: String?,
         val tracks: List<Track>,
+        /** playlist / likes / track / user */
+        val kind: String = "playlist",
+        val id: String = "",
     )
 
     data class Stream(val url: String, val hls: Boolean)
@@ -138,11 +141,13 @@ object SoundCloud {
                     author = user?.str("username") ?: "",
                     artworkUrl = bigArt(obj.str("artwork_url") ?: user?.str("avatar_url")),
                     tracks = fullTracks(obj.optJSONArray("tracks") ?: JSONArray()),
+                    kind = "playlist",
+                    id = "pl_" + obj.optString("id"),
                 )
             }
             "track" -> {
                 val t = parseTrack(obj)
-                Playlist(t.title, t.artist, t.artworkUrl, listOf(t))
+                Playlist(t.title, t.artist, t.artworkUrl, listOf(t), kind = "track", id = t.key)
             }
             "user" -> userLikes(obj)
             else -> throw IOException("Эта ссылка не похожа на плейлист или трек")
@@ -177,6 +182,8 @@ object SoundCloud {
             author = user.optString("username"),
             artworkUrl = bigArt(user.str("avatar_url")),
             tracks = tracks,
+            kind = "likes",
+            id = "likes_$id",
         )
     }
 
@@ -189,6 +196,8 @@ object SoundCloud {
             author = "Треки исполнителя",
             artworkUrl = bigArt(user.str("avatar_url")),
             tracks = (0 until arr.length()).map { parseTrack(arr.getJSONObject(it)) },
+            kind = "user",
+            id = "user_$id",
         )
     }
 
@@ -252,11 +261,14 @@ object SoundCloud {
             val fmt = t.optJSONObject("format") ?: continue
             val protocol = fmt.optString("protocol")
             val mime = fmt.optString("mime_type")
+            val preset = t.optString("preset")
+            // ВАЖНО: "audio/mpegurl" (abr_*) — адаптивный мастер-плейлист, он не играет. Пропускаем.
             val score = when {
-                protocol == "progressive" -> 3
-                protocol == "hls" && mime.startsWith("audio/mpeg") -> 2
-                protocol == "hls" && mime.startsWith("audio/mp4") -> 1
-                else -> -1 // зашифрованные и opus-потоки пропускаем
+                protocol == "progressive" && mime.startsWith("audio/mpeg") -> 5
+                protocol == "hls" && preset.startsWith("aac_160") -> 4
+                protocol == "hls" && mime == "audio/mpeg" -> 3
+                protocol == "hls" && mime.startsWith("audio/mp4") -> 2
+                else -> -1 // abr, зашифрованные и opus-потоки пропускаем
             }
             if (score > bestScore) {
                 bestScore = score

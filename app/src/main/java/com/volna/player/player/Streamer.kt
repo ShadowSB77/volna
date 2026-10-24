@@ -59,7 +59,11 @@ object Streamer {
             }
 
             override fun onPlayerError(error: PlaybackException) {
-                if (isActive()) recover()
+                if (isActive()) {
+                    recover()
+                } else {
+                    _error.value = "Не удалось воспроизвести трек (${error.errorCodeName})"
+                }
             }
         })
     }

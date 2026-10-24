@@ -26,6 +26,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -43,6 +45,7 @@ import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import com.google.common.util.concurrent.ListenableFuture
 import com.volna.player.player.PlaybackService
+import com.volna.player.player.Streamer
 import com.volna.player.ui.theme.VColors
 import com.volna.player.ui.theme.VolnaTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -120,8 +123,16 @@ fun VolnaRoot(sharedUrl: String?, onSharedConsumed: () -> Unit) {
         if (sharedUrl != null) tab = Tab.PLAYLIST
     }
 
+    // Ошибки воспроизведения показываем на любом экране, а не молча
+    val snackbar = remember { SnackbarHostState() }
+    val streamError by Streamer.error.collectAsStateWithLifecycle()
+    LaunchedEffect(streamError) {
+        streamError?.let { snackbar.showSnackbar(it) }
+    }
+
     Scaffold(
         containerColor = VColors.Bg,
+        snackbarHost = { SnackbarHost(snackbar) },
         bottomBar = {
             Column {
                 MiniPlayer(onOpen = { showPlayer = true })

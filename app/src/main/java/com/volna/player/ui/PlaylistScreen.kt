@@ -17,6 +17,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Download
 import androidx.compose.material.icons.rounded.Favorite
@@ -200,18 +201,41 @@ fun PlaylistScreen(vm: PlaylistViewModel, sharedUrl: String?, onSharedConsumed: 
                         Text("Скачать ($canDl)")
                     }
                 }
-                OutlinedButton(
-                    onClick = {
-                        val n = Library.addLikes(pl.tracks)
-                        vm.notice = if (n > 0) "Добавлено в «Понравилось»: $n. Они в Медиатеке и в Волне"
-                        else "Все эти треки уже в «Понравилось»"
-                    },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(46.dp),
-                    shape = RoundedCornerShape(14.dp),
-                ) {
-                    Icon(Icons.Rounded.Favorite, null)
-                    Spacer(Modifier.width(6.dp))
-                    Text("Перенести в «Понравилось»")
+                if (pl.kind == "likes") {
+                    OutlinedButton(
+                        onClick = {
+                            val n = Library.addLikes(pl.tracks)
+                            vm.notice = if (n > 0) "Добавлено в «Понравилось»: $n — смотри в Медиатеке"
+                            else "Все эти треки уже в «Понравилось»"
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(46.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(Icons.Rounded.Favorite, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Перенести в «Понравилось»")
+                    }
+                } else if (pl.tracks.size > 1) {
+                    OutlinedButton(
+                        onClick = {
+                            Library.savePlaylist(
+                                Library.SavedPlaylist(
+                                    id = pl.id.ifBlank { "pl_" + pl.title.hashCode() },
+                                    title = pl.title,
+                                    author = pl.author,
+                                    artworkUrl = pl.artworkUrl,
+                                    tracks = pl.tracks,
+                                )
+                            )
+                            vm.notice = "Плейлист сохранён — Медиатека → Плейлисты"
+                        },
+                        modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(46.dp),
+                        shape = RoundedCornerShape(14.dp),
+                    ) {
+                        Icon(Icons.Rounded.Add, null)
+                        Spacer(Modifier.width(6.dp))
+                        Text("Сохранить плейлист в Медиатеку")
+                    }
                 }
                 vm.notice?.let {
                     Text(
