@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Пять столбиков-эквалайзера в безопасной зоне иконки -->
+    <path android:pathData="M33,50 a3,3 0 0 1 6,0 v8 a3,3 0 0 1 -6,0 z M42,40 a3,3 0 0 1 6,0 v28 a3,3 0 0 1 -6,0 z M51,32 a3,3 0 0 1 6,0 v44 a3,3 0 0 1 -6,0 z M60,42 a3,3 0 0 1 6,0 v24 a3,3 0 0 1 -6,0 z M69,48 a3,3 0 0 1 6,0 v12 a3,3 0 0 1 -6,0 z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:type="linear"
+                android:startX="33" android:startY="32"
+                android:endX="75" android:endY="76">
+                <item android:offset="0" android:color="#FF9B6BFF" />
+                <item android:offset="0.55" android:color="#FFFF5C8A" />
+                <item android:offset="1" android:color="#FFFFB45C" />
+            </gradient>
+        </aapt:attr>
+    </path>
+</vector>
