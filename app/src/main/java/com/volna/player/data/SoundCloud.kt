@@ -54,21 +54,37 @@ object SoundCloud {
         }
     }
 
+    /**
+     * Ключ берём со страницы сайта, запрошенной как с компьютера:
+     * мобильная версия (m.soundcloud.com) его не содержит.
+     * 1) из встроенных данных страницы (apiClient), 2) из js-бандлов.
+     */
     private fun fetchClientId(): String {
-        val html = Http.getText("https://soundcloud.com/")
-        val scripts = Regex("src=\"(https://a-v2\\.sndcdn\\.com/assets/[^\"]+\\.js)")
-            .findAll(html).map { it.groupValues[1] }.toList()
-        val re = Regex("client_id\\s*[:=]\\s*\"?([a-zA-Z0-9]{32})")
-        for (s in scripts.asReversed()) {
-            val js = try {
-                Http.getText(s)
+        var lastError: Exception? = null
+        for (page in listOf("https://soundcloud.com/discover", "https://soundcloud.com/")) {
+            try {
+                val html = Http.getText(page, desktop = true)
+                Regex("\"hydratable\"\\s*:\\s*\"apiClient\"\\s*,\\s*\"data\"\\s*:\\s*\\{\\s*\"id\"\\s*:\\s*\"([a-zA-Z0-9]{32})\"")
+                    .find(html)?.let { return it.groupValues[1] }
+
+                val scripts = Regex("src=\"(https://a-v2\\.sndcdn\\.com/assets/[^\"]+\\.js)")
+                    .findAll(html).map { it.groupValues[1] }.toList()
+                val re = Regex("client_id\\s*[:=]\\s*\"?([a-zA-Z0-9]{32})")
+                for (s in scripts.asReversed()) {
+                    val js = try {
+                        Http.getText(s, desktop = true)
+                    } catch (e: Exception) {
+                        continue
+                    }
+                    val m = re.find(js)
+                    if (m != null) return m.groupValues[1]
+                }
             } catch (e: Exception) {
-                continue
+                lastError = e
             }
-            val m = re.find(js)
-            if (m != null) return m.groupValues[1]
         }
-        throw IOException("Не удалось подключиться к SoundCloud")
+        val reason = lastError?.let { " (" + Http.friendly(it) + ")" } ?: ""
+        throw IOException("Не удалось подключиться к SoundCloud$reason")
     }
 
     private fun withCid(pathOrUrl: String, cid: String): String {
@@ -98,7 +114,20 @@ object SoundCloud {
         if (url.contains("on.soundcloud.com") || url.contains("snd.sc")) {
             url = withContext(Dispatchers.IO) { Http.finalUrl(url) }
         }
-        url = url.replace("://m.soundcloud.com", "://soundcloud.com").substringBefore('?')
+        url = url.replace("://m.soundcloud.com", "://soundcloud.com")
+            .replace("://www.soundcloud.com", "://soundcloud.com")
+            .substringBefore('?').trimEnd('/')
+
+        // Профиль: soundcloud.com/имя, /имя/likes, /имя/tracks
+        val path = url.substringAfter("soundcloud.com/", "").split('/').filter { it.isNotBlank() }
+        val isProfile = path.size == 1 || (path.size == 2 && path[1] in listOf("likes", "tracks", "popular-tracks"))
+        if (isProfile) {
+            val user = JSONObject(apiRaw("/resolve?url=" + URLEncoder.encode("https://soundcloud.com/" + path[0], "UTF-8")))
+            if (user.optString("kind") == "user") {
+                return if (path.getOrNull(1) == "tracks" || path.getOrNull(1) == "popular-tracks") userTracks(user)
+                else userLikes(user)
+            }
+        }
 
         val obj = JSONObject(apiRaw("/resolve?url=" + URLEncoder.encode(url, "UTF-8")))
         return when (obj.optString("kind")) {
@@ -115,19 +144,52 @@ object SoundCloud {
                 val t = parseTrack(obj)
                 Playlist(t.title, t.artist, t.artworkUrl, listOf(t))
             }
-            "user" -> {
-                val id = obj.getLong("id")
-                val res = JSONObject(apiRaw("/users/$id/tracks?limit=200"))
-                val arr = res.optJSONArray("collection") ?: JSONArray()
-                Playlist(
-                    title = obj.optString("username"),
-                    author = "Треки исполнителя",
-                    artworkUrl = bigArt(obj.str("avatar_url")),
-                    tracks = (0 until arr.length()).map { parseTrack(arr.getJSONObject(it)) },
-                )
-            }
+            "user" -> userLikes(obj)
             else -> throw IOException("Эта ссылка не похожа на плейлист или трек")
         }
+    }
+
+    /** Все лайкнутые треки профиля (постранично, до 3000). */
+    private suspend fun userLikes(user: JSONObject): Playlist {
+        val id = user.getLong("id")
+        val tracks = ArrayList<Track>()
+        val seen = HashSet<Long>()
+        var next: String? = "/users/$id/track_likes?limit=200&linked_partitioning=1"
+        var pages = 0
+        while (next != null && pages < 15 && tracks.size < 3000) {
+            val res = JSONObject(apiRaw(next))
+            val arr = res.optJSONArray("collection") ?: JSONArray()
+            for (i in 0 until arr.length()) {
+                val item = arr.getJSONObject(i)
+                val t = item.optJSONObject("track") ?: continue
+                try {
+                    val parsed = parseTrack(t)
+                    if (parsed.scId != null && seen.add(parsed.scId)) tracks += parsed
+                } catch (e: Exception) {
+                }
+            }
+            next = res.str("next_href")
+            pages++
+        }
+        if (tracks.isEmpty()) throw IOException("У профиля нет лайков или они скрыты")
+        return Playlist(
+            title = "Лайки · " + user.optString("username"),
+            author = user.optString("username"),
+            artworkUrl = bigArt(user.str("avatar_url")),
+            tracks = tracks,
+        )
+    }
+
+    private suspend fun userTracks(user: JSONObject): Playlist {
+        val id = user.getLong("id")
+        val res = JSONObject(apiRaw("/users/$id/tracks?limit=200"))
+        val arr = res.optJSONArray("collection") ?: JSONArray()
+        return Playlist(
+            title = user.optString("username"),
+            author = "Треки исполнителя",
+            artworkUrl = bigArt(user.str("avatar_url")),
+            tracks = (0 until arr.length()).map { parseTrack(arr.getJSONObject(it)) },
+        )
     }
 
     /** В ответе плейлиста полными приходят только первые треки, остальные — заглушки с id. */

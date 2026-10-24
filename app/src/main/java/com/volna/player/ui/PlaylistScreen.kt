@@ -19,6 +19,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.ContentPaste
 import androidx.compose.material.icons.rounded.Download
+import androidx.compose.material.icons.rounded.Favorite
 import androidx.compose.material.icons.rounded.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
@@ -26,6 +27,7 @@ import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -107,7 +109,7 @@ fun PlaylistScreen(vm: PlaylistViewModel, sharedUrl: String?, onSharedConsumed: 
         item {
             SectionTitle("Плейлист", Modifier.padding(horizontal = 8.dp))
             Text(
-                "Вставь ссылку на плейлист, трек или профиль SoundCloud. Можно просто нажать «Поделиться» в приложении SoundCloud и выбрать Волну.",
+                "Вставь ссылку на плейлист или трек. Ссылка на свой профиль (soundcloud.com/имя) загрузит все твои лайки. Можно нажать «Поделиться» в SoundCloud и выбрать Волну.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
@@ -197,6 +199,19 @@ fun PlaylistScreen(vm: PlaylistViewModel, sharedUrl: String?, onSharedConsumed: 
                         Spacer(Modifier.width(6.dp))
                         Text("Скачать ($canDl)")
                     }
+                }
+                OutlinedButton(
+                    onClick = {
+                        val n = Library.addLikes(pl.tracks)
+                        vm.notice = if (n > 0) "Добавлено в «Понравилось»: $n. Они в Медиатеке и в Волне"
+                        else "Все эти треки уже в «Понравилось»"
+                    },
+                    modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp).height(46.dp),
+                    shape = RoundedCornerShape(14.dp),
+                ) {
+                    Icon(Icons.Rounded.Favorite, null)
+                    Spacer(Modifier.width(6.dp))
+                    Text("Перенести в «Понравилось»")
                 }
                 vm.notice?.let {
                     Text(

@@ -66,6 +66,19 @@ object Library {
         save()
     }
 
+    /** Перенос всех лайков из SoundCloud в «Понравилось». Возвращает, сколько добавлено. */
+    @Synchronized
+    fun addLikes(list: List<Track>): Int {
+        val have = _liked.value.mapNotNull { it.scId }.toHashSet()
+        val fresh = list.filter { it.scId != null && it.scId !in have }.map { it.copy(localPath = null) }
+        if (fresh.isEmpty()) return 0
+        val ids = fresh.mapNotNull { it.scId }.toSet()
+        _disliked.value = _disliked.value - ids
+        _liked.value = _liked.value + fresh
+        save()
+        return fresh.size
+    }
+
     @Synchronized
     fun dislike(t: Track) {
         val id = t.scId ?: return

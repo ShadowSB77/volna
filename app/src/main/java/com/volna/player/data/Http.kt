@@ -12,17 +12,21 @@ object Http {
 
     class HttpException(val code: Int) : IOException("HTTP $code")
 
-    fun open(url: String): HttpURLConnection {
+    const val DESKTOP_UA =
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/129.0 Safari/537.36"
+
+    fun open(url: String, desktop: Boolean = false): HttpURLConnection {
         val c = URL(url).openConnection() as HttpURLConnection
         c.connectTimeout = 15_000
         c.readTimeout = 30_000
         c.instanceFollowRedirects = true
-        c.setRequestProperty("User-Agent", UA)
+        c.setRequestProperty("User-Agent", if (desktop) DESKTOP_UA else UA)
+        c.setRequestProperty("Accept-Language", "en-US,en;q=0.9,ru;q=0.8")
         return c
     }
 
-    fun getText(url: String): String {
-        val c = open(url)
+    fun getText(url: String, desktop: Boolean = false): String {
+        val c = open(url, desktop)
         try {
             val code = c.responseCode
             if (code !in 200..299) throw HttpException(code)
