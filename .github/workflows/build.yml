@@ -1,0 +1,54 @@
+name: Build APK
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Unpack sources
+        run: |
+          if [ -f volna-src.zip ]; then
+            unzip -o volna-src.zip -d .
+            git config user.name "volna-bot"
+            git config user.email "volna-bot@users.noreply.github.com"
+            git rm -q volna-src.zip
+            git add -A
+            git commit -m "Unpack project sources" && git push || true
+          fi
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: android-actions/setup-android@v3
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Build
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleRelease --no-daemon --stacktrace
+          cp app/build/outputs/apk/release/app-release.apk Volna.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Volna-apk
+          path: Volna.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          name: Volna 1.0.${{ github.run_number }}
+          files: Volna.apk
+          make_latest: true
